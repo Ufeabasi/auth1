@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Mini App with TON Connect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #wallet-info, #user-info {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+    <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.min.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Telegram Mini App with TON Connect</h1>
+        <button id="connect-wallet-btn">Connect TON Wallet</button>
+        <div id="wallet-info"></div>
+        <div id="user-info"></div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            const connectWalletBtn = document.getElementById("connect-wallet-btn");
+            const walletInfoDiv = document.getElementById("wallet-info");
+            const userInfoDiv = document.getElementById("user-info");
+
+            // Initialize TON Connect
+            const connector = new TonConnectSDK.TonConnect();
+
+            // Load supported wallets
+            let walletsList;
+            try {
+                walletsList = await connector.getWallets();
+                console.log("Supported wallets:", walletsList);
+            } catch (error) {
+                console.error("Error loading wallets:", error);
+            }
+
+            // Handle wallet connection
+            connectWalletBtn.addEventListener("click", async () => {
+                if (!walletsList || walletsList.length === 0) {
+                    alert("No supported wallets found.");
+                    return;
+                }
+
+                const wallet = walletsList[0]; // Use the first wallet in the list
+
+                try {
+                    if (wallet.embedded || wallet.injected) {
+                        await connector.connect({ jsBridgeKey: wallet.jsBridgeKey });
+                    } else if (wallet.bridgeUrl) {
+                        await connector.connect({
+                            universalLink: wallet.universalLink,
+                            bridgeUrl: wallet.bridgeUrl
+                        });
+                    }
+                } catch (error) {
+                    console.error("Connection error:", error);
+                    walletInfoDiv.innerText = "Connection failed. Try again.";
+                }
+            });
+
+            // Handle connection status change
+            connector.onStatusChange((walletInfo) => {
+                if (walletInfo) {
+                    walletInfoDiv.innerText = `Connected to ${walletInfo.device.appName}`;
+                    console.log("Connected:", walletInfo);
+                } else {
+                    walletInfoDiv.innerText = "Not connected";
+                    console.log("Disconnected");
+                }
+            });
+
+            // Restore previous connection if possible
+            try {
+                await connector.restoreConnection();
+            } catch (error) {
+                console.error("Failed to restore connection:", error);
+            }
+
+            // Telegram Web App integration
+            const tg = window.Telegram.WebApp;
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                const user = tg.initDataUnsafe.user;
+                userInfoDiv.innerText = `Hello, ${user.first_name} ${user.last_name || ""} (@${user.username})`;
+                console.log("Telegram user:", user);
+            } else {
+                userInfoDiv.innerText = "Unable to get Telegram user information.";
+            }
+
+            // Make Telegram WebApp ready
+            tg.ready();
+        });
+    </script>
+</body>
+</html>
